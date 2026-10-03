@@ -1,0 +1,152 @@
+name: Release
+
+# A push to main builds a package. A tag publishes a release, and so does Run workflow,
+# which first makes the release commit and tag itself (Tools/release.py).
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "*"
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Bump the newest tag: patch (0.5.16 -> 0.5.17), minor (-> 0.6.0) or major (-> 1.0.0)"
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+      beta:
+        description: "Beta release (adds -beta; untick for a full release such as 1.0.0)"
+        type: boolean
+        default: true
+      version:
+        description: "Exact version instead, e.g. 0.5.17-beta (optional; overrides the two above)"
+        required: false
+        type: string
+
+permissions: {}
+
+# Never cancel a release halfway through publishing.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+
+  prepare:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+
+    runs-on: ubuntu-24.04
+
+    # Pushes the release commit and tag.
+    permissions:
+      contents: write
+
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Release commit and tag
+        id: tag
+        env:
+          BUMP: ${{ inputs.bump }}
+          BETA: ${{ inputs.beta }}
+          VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          args=(prepare --bump "$BUMP")
+          if [ "$BETA" = true ]; then args+=(--beta); else args+=(--no-beta); fi
+          if [ -n "$VERSION" ]; then args+=(--version "$VERSION"); fi
+          version=$(python3 Tools/release.py "${args[@]}")
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Nothing to commit when main already has the release commit (a version bumped by
+          # hand but not tagged yet).
+          if ! git diff --quiet; then
+            git commit -q -am "chore(release): $version"
+          fi
+          git tag -a "$version" -m "$version"
+          # The tag stays on the release commit; main goes on with an empty "## Unreleased".
+          python3 Tools/release.py start-next
+          if ! git diff --quiet; then
+            git commit -q -am "chore: start the next changelog"
+          fi
+          git push --atomic "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            HEAD:main "refs/tags/$version"
+          echo "tag=$version" >> "$GITHUB_OUTPUT"
+
+  release:
+    needs: prepare
+    if: ${{ !cancelled() && (github.event_name == 'push' || needs.prepare.result == 'success') }}
+
+    runs-on: ubuntu-24.04
+
+    # Uploads the GitHub release (GITHUB_OAUTH below).
+    permissions:
+      contents: write
+
+    env:
+      CF_API_KEY: ${{ secrets.CF_API_KEY }}
+      WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}
+      GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
+      # The release being published; empty for a plain push to main.
+      TAG: ${{ needs.prepare.outputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || '' }}
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.prepare.outputs.tag || github.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Release
+        uses: BigWigsMods/packager@e50a250f8705041e40f2fa1ddcb280a686d65aa0 # v2.6.1
+
+      # The packager's notes are the whole CHANGELOG.md; replace them with this release's
+      # player notes and the commits since the last tag.
+      - name: Release notes
+        if: env.TAG != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 Tools/release.py notes "$TAG" > "$RUNNER_TEMP/notes.md"
+          gh release edit "$TAG" --notes-file "$RUNNER_TEMP/notes.md"
+
+      - name: Post changelog to Discord
+        if: env.TAG != ''
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_CHANGELOG_WEBHOOK }}
+        run: |
+          # CHANGELOG.md hard-wraps list items; join them so Discord doesn't break mid-sentence.
+          # The repo stores CRLF (.gitattributes -text), and the runner's awk keeps the CR.
+          notes=$(awk -v v="## ${TAG}" '
+            {sub(/\r$/, "")}
+            $0 == v && !done {f = 1; done = 1; next}
+            /^## / {f = 0}
+            !f {next}
+            /^### / {sub(/^### /, ""); $0 = "**" $0 "**"}
+            /^ +[^ -]/ && out != "" {sub(/^ +/, ""); out = out " " $0; next}
+            {out = out (out == "" ? "" : "\n") $0}
+            END {print out}' CHANGELOG.md)
+          if [ -z "$notes" ]; then
+            echo "No '## ${TAG}' section in CHANGELOG.md"
+            exit 1
+          fi
+          # An embed description holds 4096 characters; a longer section is posted by hand
+          # rather than cut off mid-list.
+          if [ ${#notes} -gt 4096 ]; then
+            echo "::warning::${TAG} notes are ${#notes} characters, over Discord's 4096. Post them by hand."
+            exit 0
+          fi
+          jq -n --arg title "Naowh Forever ${TAG}" --arg notes "$notes" \
+            '{embeds: [{title: $title, description: $notes, color: 10181046}]}' |
+            curl -fsS -H "Content-Type: application/json" -d @- "$DISCORD_WEBHOOK"

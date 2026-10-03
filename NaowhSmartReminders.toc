@@ -1,0 +1,65 @@
+## Interface: 120000, 120001, 120005, 120007, 120100
+## Title: |cff0091edNaowh|r Smart Reminders
+## Notes: Calls out what to press when the boss timeline says an ability is coming. All specs.
+## Author: NaowhUI
+## Version: 1.4.26
+## OptionalDeps: NaowhUI_Media, BigWigs, DBM-Core
+## SavedVariables: NaowhUI_SmartRemindersDB
+## Group: NaowhUI
+## IconTexture: Interface\AddOns\NaowhSmartReminders\Media\LogoAddon.tga
+## AddonCompartmentFunc: NaowhUI_SmartReminders_OnCompartmentClick
+
+Libs\embeds.xml
+
+# Locale tables must load before Core creates the addon namespace.
+Locales\enUS.lua
+Locales\deDE.lua [AllowLoadTextLocale deDE]
+Locales\ruRU.lua [AllowLoadTextLocale ruRU]
+
+# Core first: theme, chrome primitives, the DB and profiles -- everything later files
+# hang off.
+NaowhUI_SmartReminders_Core.lua
+
+# The widget kit: ns.UI, the shim every options page calls in place of EllesmereUI's
+# factory. Needs ns.THEME and the Core primitives.
+NaowhUI_SmartReminders_Widgets.lua
+
+# The standalone options window: tabs, scroll, RefreshPage, slash/compartment entry.
+# The page builders it dispatches to live in the later files, resolved at open time.
+NaowhUI_SmartReminders_Window.lua
+
+# Tank busters Blizzard's own TankRole bit does not carry. Additive to it, never a
+# replacement, so content this file has never heard of still works unchanged. Loads after
+# Core, which owns the namespace it hangs off.
+NaowhUI_SmartReminders_Abilities.lua
+
+NaowhUI_SmartReminders.lua
+
+# Raid-wide external/CD reminders, assignable to a role/class/spec/name/subgroup rather
+# than the local player only -- built on the same BigWigs/DBM bar bridge the main file
+# already runs for tank busters (ns.ScheduleBWFire), not a second one. Loads after the
+# main file, which owns that bridge and the per-boss-set helper this hangs off.
+NaowhUI_SmartReminders_RaidReminders.lua
+
+# Shareable Reminder Packs: a curator's lists, priorities and written reminders as
+# one string, with preview-before-apply. Loads after the runtime it packages.
+NaowhUI_SmartReminders_Integrations.lua
+NaowhUI_SmartReminders_IntegrationOptions.lua
+# Signature check for naowh.gg's personalized pack downloads. Loads before Packs,
+# which calls into it; standalone otherwise, so load order relative to the main
+# runtime does not matter.
+NaowhUI_SmartReminders_Verify.lua
+
+NaowhUI_SmartReminders_Packs.lua
+
+# Reads this season's bosses and their tank-flagged abilities out of the player's own
+# Dungeon Journal. Lazy: nothing is read until the page is opened.
+NaowhUI_SmartReminders_Bosses.lua
+
+# What the boss actually did, recorded from the player's own pulls. Loads after the main
+# file, whose dispatchers call into it and whose pull clocks it reads.
+NaowhUI_SmartReminders_Observed.lua
+
+# The Custom Reminders tab and the MRT note format behind it. Loads last: the page
+# renders through the shared section builder and editors Bosses.lua defines.
+NaowhUI_SmartReminders_Note.lua

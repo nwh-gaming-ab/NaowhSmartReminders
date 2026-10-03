@@ -1,0 +1,28 @@
+local L = _G.NaowhSmartRemindersLocale
+if not L then return end
+
+-- Copy this file for a new locale, then replace only the values on the right.
+L["Smart Reminders"] = "Smarte Erinnerungen"
+L["Custom Notes"] = "Eigene Notizen"
+L["Profiles"] = "Profile"
+L["Setup"] = "Einrichtung"
+L["Cooldown Presets"] = "Abklingzeit-Vorlagen"
+L["Dungeon Bosses"] = "Dungeonbosse"
+L["Raid Bosses"] = "Raidbosse"
+L["Trash"] = "Trash"
+L["Debuffs"] = "Debuffs"
+L["Coming soon"] = "Kommt bald"
+L["Click to open settings."] = "Klicke, um die Einstellungen zu oeffnen."
+L["Drag to move the minimap button."] = "Ziehe, um die Minikarten-Schaltflaeche zu verschieben."
+L["Add"] = "Hinzufuegen"
+L["Cancel"] = "Abbrechen"
+L["Close"] = "Schliessen"
+L["Delete"] = "Loeschen"
+L["Done"] = "Fertig"
+L["Edit"] = "Bearbeiten"
+L["Import"] = "Importieren"
+L["New Profile"] = "Neues Profil"
+L["Preview"] = "Vorschau"
+L["Remove"] = "Entfernen"
+L["Save"] = "Speichern"
+L["Test"] = "Testen"

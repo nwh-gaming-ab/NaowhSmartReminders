@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+
+# Fetched by the packager from .pkgmeta externals; only the loader is ours.
+/Libs/*
+!/Libs/embeds.xml

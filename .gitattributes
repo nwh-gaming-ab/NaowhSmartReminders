@@ -1,0 +1,4 @@
+# No EOL translation: WoW reads these files as committed, and mixed-machine
+# checkouts must not rewrite line endings under the game client.
+* -text
+Tools export-ignore
