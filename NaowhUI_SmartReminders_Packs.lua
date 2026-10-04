@@ -374,8 +374,12 @@ end
 --                   true for a whole-file pack.
 --   settings        take the curator's display, sound and behaviour settings. Default true,
 --                   since an installer offering a UI is asking for exactly that.
+--   profileName     land a single-profile pack under this name, replacing a profile already
+--                   there, so running the installer again refreshes it instead of adding
+--                   "Naowh 2". Ignored for a whole-file pack, whose profiles name themselves.
 --
--- Returns true plus the number of profiles landed, or false and a reason. Never throws: an
+-- Returns true plus the number of profiles landed (the profile's name for a single-profile
+-- pack), or false and a reason. Never throws: an
 -- installer step failing should report, not break the install.
 -- What InstallProfilePack is ABOUT to do, in plain language, without doing any of it. Meant
 -- for an installer to show before the step runs -- "this will do X" read on a confirmation
@@ -503,7 +507,9 @@ function ns.InstallProfilePack(str, opts)
         ok, landed = ns.ApplyProfiles(payload, nil, settings, bind)
         if ok and bind then ns.AutoSpecProfile(true) end
     else
-        ok, landed = ns.ImportPackAsProfile(payload, nil, settings)
+        local name = type(opts.profileName) == "string" and opts.profileName or nil
+        ok, landed = ns.ImportPackAsProfile(payload, nil, settings, name,
+            name ~= nil and name:match("%S") ~= nil)
     end
     if not ok then return false, "the pack could not be applied" end
 
@@ -517,6 +523,21 @@ function ns.InstallProfilePack(str, opts)
 
     if ns.ApplySpecProfile and ns.CurrentSpec then ns.ApplySpecProfile((ns.CurrentSpec())) end
     return true, landed
+end
+
+-- The NaowhUI installer's entry point, shaped like the other addons it sets up:
+--   NaowhSmartReminders_API:ImportProfile(str, "Naowh")
+-- A single-profile pack lands as profileName and becomes the account profile, so every
+-- character, including ones not logged into yet, uses it with no per-character step. A
+-- whole-file pack keeps its own names and binds them to specs instead; characters on a spec
+-- the pack does not cover stay on their current profile.
+local API = {}
+_G.NaowhSmartReminders_API = API
+
+function API:ImportProfile(str, profileName)
+    local ok, landed = ns.InstallProfilePack(str, { profileName = profileName })
+    if ok and type(landed) == "string" then ns.SetAccountProfile(landed) end
+    return ok, landed
 end
 
 -- Decode and validate; returns the payload plus a human description, or nil
