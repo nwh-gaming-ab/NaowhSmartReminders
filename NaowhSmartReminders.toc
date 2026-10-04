@@ -2,7 +2,7 @@
 ## Title: |cff0091edNaowh|r Smart Reminders
 ## Notes: Calls out what to press when the boss timeline says an ability is coming. All specs.
 ## Author: NaowhUI
-## Version: 1.4.26
+## Version: 1.4.27
 ## OptionalDeps: NaowhUI_Media, BigWigs, DBM-Core
 ## SavedVariables: NaowhUI_SmartRemindersDB
 ## Group: NaowhUI
