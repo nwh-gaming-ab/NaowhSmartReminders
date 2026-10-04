@@ -110,6 +110,9 @@ jobs:
 
       - name: Release
         uses: BigWigsMods/packager@e50a250f8705041e40f2fa1ddcb280a686d65aa0 # v2.6.1
+        with:
+          # CurseForge project, only for a tagged release so main's dev builds stay off CurseForge.
+          args: ${{ env.TAG != '' && '-p 1682733' || '' }}
 
       # The packager's notes are the whole CHANGELOG.md; replace them with this release's
       # player notes and the commits since the last tag.
