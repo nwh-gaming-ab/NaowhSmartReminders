@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.4.27
+
+### Added
+- The NaowhUI installer can now set up Smart Reminders for you. It imports Naowh's profile
+  and puts every character on the account on it, including characters you have not logged
+  into yet. Running the installer again refreshes that profile instead of adding a copy.
+
+### Fixed
+- Importing a profile for the whole account no longer forgets which profile your current spec
+  used. If you turn per-spec profile switching back on afterwards, that spec goes back to the
+  profile you had chosen for it.
+
 ## 1.4.26
 
 ### Changed
