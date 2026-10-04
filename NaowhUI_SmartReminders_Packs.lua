@@ -345,8 +345,8 @@ function ns.ExportPack(packName, author, allowImported)
     return PREFIX .. LD:EncodeForPrint(compressed)
 end
 
--- The one call an installer needs, paired with the one call that describes it first.
--- NaowhUI's own installer offers Smart Reminders as a step:
+-- The lower-level installer pair, for one that shows a confirmation before it runs. NaowhUI's
+-- own installer calls NaowhSmartReminders_API:ImportProfile below instead.
 --
 --   local SR = _G.NaowhUITankReminder
 --   if SR and SR.InstallProfilePack then
@@ -379,8 +379,9 @@ end
 --                   "Naowh 2". Ignored for a whole-file pack, whose profiles name themselves.
 --
 -- Returns true plus the number of profiles landed (the profile's name for a single-profile
--- pack), or false and a reason. Never throws: an
--- installer step failing should report, not break the install.
+-- pack), or false and a reason. Never throws: an installer step failing should report, not
+-- break the install.
+
 -- What InstallProfilePack is ABOUT to do, in plain language, without doing any of it. Meant
 -- for an installer to show before the step runs -- "this will do X" read on a confirmation
 -- screen, not discovered afterwards from what changed. Same opts as InstallProfilePack, since
@@ -495,14 +496,25 @@ function ns.DescribeProfilePack(str, opts)
     return table.concat(lines, "|n"), info
 end
 
+-- ImportPackAsProfile switches to the profile it lands, and SwitchProfile maps the current spec
+-- to it. Callers that then set the account profile put this entry back, so per-spec switching
+-- turned on again restores the player's own choice for that spec.
+local function CurrentSpecEntry()
+    local spec = ns.CurrentSpec and ns.CurrentSpec()
+    if not spec or spec <= 0 then return nil end
+    return tostring(spec), ns.SpecProfileMap()[tostring(spec)]
+end
+
 function ns.InstallProfilePack(str, opts)
     opts = type(opts) == "table" and opts or {}
     local payload, err = ns.DecodePack(str)
     if not payload then return false, err or "the string could not be read" end
 
     local settings = opts.settings ~= false
+    local multi = type(payload.profiles) == "table"
+    local specKey, specWas = CurrentSpecEntry()
     local ok, landed
-    if type(payload.profiles) == "table" then
+    if multi then
         local bind = opts.bindSpecs ~= false
         ok, landed = ns.ApplyProfiles(payload, nil, settings, bind)
         if ok and bind then ns.AutoSpecProfile(true) end
@@ -519,6 +531,7 @@ function ns.InstallProfilePack(str, opts)
             return false, ("imported, but %s is not a profile in this pack (%s)"):format(
                 tostring(opts.accountProfile), tostring(why))
         end
+        if specKey and not multi then ns.SpecProfileMap()[specKey] = specWas end
     end
 
     if ns.ApplySpecProfile and ns.CurrentSpec then ns.ApplySpecProfile((ns.CurrentSpec())) end
@@ -535,9 +548,22 @@ local API = {}
 _G.NaowhSmartReminders_API = API
 
 function API:ImportProfile(str, profileName)
+    local specKey, specWas = CurrentSpecEntry()
     local ok, landed = ns.InstallProfilePack(str, { profileName = profileName })
-    if ok and type(landed) == "string" then ns.SetAccountProfile(landed) end
-    return ok, landed
+    -- The NaowhUI installer ignores the return values, so failures are reported here.
+    if not ok then
+        ns.Print("Smart Reminders import failed: " .. tostring(landed))
+        return false, landed
+    end
+    if type(landed) == "string" then
+        local set, autoOff = ns.SetAccountProfile(landed)
+        if set and specKey then ns.SpecProfileMap()[specKey] = specWas end
+        if set and autoOff then
+            ns.Print(("Per-spec profile switching is off while every character shares '%s'; "
+                .. "your spec choices are kept if you switch it back on."):format(landed))
+        end
+    end
+    return true, landed
 end
 
 -- Decode and validate; returns the payload plus a human description, or nil
@@ -1994,6 +2020,7 @@ function ns.ShowPackImport()
             return
         end
         if #specs > 0 and not all then want = specWanted end
+        local specKey, specWas = CurrentSpecEntry()
         local ok, newName = ns.ImportPackAsProfile(decoded, want, settingsWanted,
             nameBox and nameBox:GetText(), overwriteWanted)
         if ok then
@@ -2004,6 +2031,7 @@ function ns.ShowPackImport()
             if accountWanted and ns.SetAccountProfile then
                 accountSet, autoOff = ns.SetAccountProfile(newName)
             end
+            if accountSet and specKey then ns.SpecProfileMap()[specKey] = specWas end
             if accountSet then
                 local known = ns.KnownCharacters and #ns.KnownCharacters() or 0
                 ns.Print(("imported as the profile '%s'. %s on this account use%s it now, and "
