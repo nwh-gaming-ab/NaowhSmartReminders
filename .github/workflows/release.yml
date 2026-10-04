@@ -11,14 +11,14 @@ on:
   workflow_dispatch:
     inputs:
       bump:
-        description: "Bump the newest tag: patch (0.5.16 -> 0.5.17), minor (-> 0.6.0) or major (-> 1.0.0)"
+        description: "Bump the newest tag: patch (1.4.27 -> 1.4.28), minor (-> 1.5.0) or major (-> 2.0.0)"
         type: choice
         options: [patch, minor, major]
         default: patch
       beta:
-        description: "Beta release (adds -beta; untick for a full release such as 1.0.0)"
+        description: "Beta release (adds -beta)"
         type: boolean
-        default: true
+        default: false
       version:
         description: "Exact version instead, e.g. 0.5.17-beta (optional; overrides the two above)"
         required: false
@@ -112,7 +112,7 @@ jobs:
         uses: BigWigsMods/packager@e50a250f8705041e40f2fa1ddcb280a686d65aa0 # v2.6.1
         with:
           # CurseForge project, only for a tagged release so main's dev builds stay off CurseForge.
-          args: ${{ env.TAG != '' && '-p 1682733' || '' }}
+          args: ${{ env.TAG != '' && '-p 1682733 -a nGv7jeNx' || '' }}
 
       # The packager's notes are the whole CHANGELOG.md; replace them with this release's
       # player notes and the commits since the last tag.
@@ -129,6 +129,10 @@ jobs:
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_CHANGELOG_WEBHOOK }}
         run: |
+          if [ -z "$DISCORD_WEBHOOK" ]; then
+            echo "DISCORD_CHANGELOG_WEBHOOK is not set; not posting."
+            exit 0
+          fi
           # CHANGELOG.md hard-wraps list items; join them so Discord doesn't break mid-sentence.
           # The repo stores CRLF (.gitattributes -text), and the runner's awk keeps the CR.
           notes=$(awk -v v="## ${TAG}" '
@@ -150,6 +154,6 @@ jobs:
             echo "::warning::${TAG} notes are ${#notes} characters, over Discord's 4096. Post them by hand."
             exit 0
           fi
-          jq -n --arg title "Naowh Forever ${TAG}" --arg notes "$notes" \
+          jq -n --arg title "Naowh Smart Reminders ${TAG}" --arg notes "$notes" \
             '{embeds: [{title: $title, description: $notes, color: 10181046}]}' |
             curl -fsS -H "Content-Type: application/json" -d @- "$DISCORD_WEBHOOK"
